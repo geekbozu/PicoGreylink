@@ -1,4 +1,6 @@
 {
     "sync_folder": "",
-    "open_on_start": true
+    "open_on_start": true,
+    "auto_connect": false,
+    "manual_com_device": "COM7"
 }
