@@ -12,7 +12,7 @@ This repository plans to include a python set of routines, and a C set of routin
 
 ### Hardware
 
-The Pico is connected to a graphing calculator using 4 pins and 2 diodes to emulate an open drain bus. This could be done with fast switching of pins from input to output mode, However I find the code was easier and cleaner to write this way...for now. 
+The Pico is connected to a graphing calculator using 4 pins and 2 diodes to emulate an open collector bus. This could be done with fast switching of pins from input to output mode, However I find the code was easier and cleaner to write this way...for now. 
 
 <img src="docs\BasicWireup.png" alt="BasicWireup" style="zoom:50%;" />
 
