@@ -114,26 +114,6 @@ def decode_pio(uint16_val, sideset_bits = 0, sideset_opt = False):
     return output
 
 
-# RX routine for TiLink protocol
-#Assumse all data is sent in 8bit aligned incrememnts.
-#will auto shift data to the RX Fifo upon RXing of 8bits
-#bits will be stored in upper bits...31:23. Reading application will need to shift bits >>24 to correctly justify data
-@rp2.asm_pio(out_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),set_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),autopush=True,in_shiftdir=rp2.PIO.SHIFT_RIGHT,push_thresh=8)
-def rx():               #10 Instructions
-    wrap_target()
-    label('rxstart')
-    set(pins,3)         #set both pins high/End/Readyup for next bit
-    wait(0,irq,1)       # wait for rx lock to go low
-    irq(block, 0)       #wait for irq to clear signaling we are starting a bit
-    in_(pins,1)         #Shift in White line...which holds our current valid bit.
-    jmp(pin,'ifRed')    #If Red is high Jump to Red as Ack
-    set(pins,1)         #Set White Line low to ACK
-    wait(1,pin,0)      #wait for red to go high
-    jmp('rxstart')
-    label('ifRed')
-    set(pins,2)         #Set Red Line low to ACK
-    wait(1,pin,1)      #Wait for white to go high
-    wrap()
 
 @rp2.asm_pio(out_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),sideset_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),
             set_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),autopush=True,in_shiftdir=rp2.PIO.SHIFT_RIGHT,
@@ -141,58 +121,56 @@ def rx():               #10 Instructions
 def txrx(): 
     wrap_target()
     label('idleloop')
-    mov(x,status)
-    jmp(not_x,'txstart')
-    set(y,0x3)   #bitmask for no bits pressed
-    in_(pins,2)
-    mov(x,reverse(isr))
-    mov(isr,null)
-    jmp(x_not_y,'rxstart')
-    wrap()   # 7 
+    mov(x,status)               # 1  Status, set IF fifo has 0 elements, clear if 1 or more
+    jmp(not_x,'txstart')        # 2  If status is clear, we have data to transmit
+    set(y,0x3)                  # 3  bitmask for no bits pressed
+    in_(pins,2)                 # 4  Read 2 input bits
+    mov(x,reverse(isr))         # 5  Move bits, Reverse to account for Right Shift, We want bits in LSB
+    mov(isr,null)               # 6  Clear ISR rest Autopull
+    jmp(x_not_y,'rxstart')      # 7  if any line is low jump to RX
+    wrap()                      #    End idle loop
     
-    label('txstart')
-    pull()
+    label('txstart')            #    Begin TX Routine
+    pull()                      # 8  Get data into osr
     label('byteloop')    
-    out(x,1)                 #Put LSB into x
-    jmp(not_x,'tx_0_bit')    #bit is 0 then jump
-    set(pins,1) 
-    wait(0,pins,0)   #pull white low & wait for red to low
-    jmp('bit_final_stage')   #jump to shared final wait
+    out(x,1)                    # 9  Put LSB into x
+    jmp(not_x,'tx_0_bit')       # 10 bit is 0 then jump
+    set(pins,1)                 # 11 Assert white
+    wait(0,pins,0)              # 12 wait for red to be asserted
+    jmp('bit_final_stage')      # 13 
     label('tx_0_bit')
-    set(pins,2) 
-    wait(0,pins,1)  #pull red low & wait for white to low
-    label('bit_final_stage')
-    wait(1,pins,0) .side(3) 
-    wait(1,pins,1)           #Wait for both lines to be deasserted
-    jmp(not_osre,'byteloop')
-    jmp('idleloop')          #13/20
+    set(pins,2)                 # 14 Assert red 
+    wait(0,pins,1)              # 15 wait for white to be asserted
+    label('bit_final_stage')    
+    wait(1,pins,0) .side(3)     # 16 Free both lines, Wait for red to de-assert
+    wait(1,pins,1)              # 17 wait for white to de-assert
+    jmp(not_osre,'byteloop')    # 18 proceed to next bit, Or exit
+    jmp('idleloop')             # 19 return to idle
 
     label('rxstart')   
-    set(x,7)
+    set(x,7)                    # 20 Bitcount -1
     label('innerrx')
-    #
-    wait(0,irq, 0)            #wait for irq to clear signaling we are starting a bit
-    #
-    in_(pins,1)               #Shift in White line...which holds our current valid bit.
-    jmp(pin,'ifRed')          #If Red is high Jump to Red as Ack
-    wait(1,pin,0) .side(1)    #ack with white and wait for red to go high
-    jmp('endrx')
+    wait(0,irq, 0)              # 21 wait for irq to clear signaling we have a starting bit
+    in_(pins,1)                 # 22 Save white line, Asserted = 0Bit, de-asserted = 1bit
+    jmp(pin,'ifRed')            # 23 Check red, jump to appropriate ACK
+    wait(1,pin,0) .side(1)      # 24 De-assert white, wait for red to go high
+    jmp('endrx')                # 25
     label('ifRed')
-    wait(1,pin,1)  .side(2)   #Set Red Line low to ACK   #Wait for white to go high
+    wait(1,pin,1)  .side(2)     # 26 De-Assert red, wait for white to go high
     label('endrx')
-    set(pins,3)
-    irq(0)
-    jmp(x_dec,'innerrx') 
-    jmp('idleloop')
+    set(pins,3)                 # 27 De-assert both lines
+    irq(0)                      # 28 Clear Bit start IRQ
+    jmp(x_dec,'innerrx')        # 29 Continue RX loop until bit count = 0
+    jmp('idleloop')             # 30 back to top. 
  
 #Pin watch routine
 #will watch in_base for a low transition and signal to IRQ 0 of the event
 #For TiLink Routines this must have a nominally low execution frequency or the transfer will fail....
 @rp2.asm_pio()
-def pinwatch():         #2 Instructions
+def pinwatch():        
     wrap_target()
-    wait(0,pin,0)     #wait for pin to go low
-    irq(clear,0)       #Acknowledge IRQ 0
+    wait(0,pin,0)               # 31 wait for pin to go low
+    irq(clear,0)                # 32 Assert IRQ 0
     wrap()
 
 
@@ -209,10 +187,10 @@ print("plug in Calculator")
 #utime.sleep(5)
 #In pin is 1, Because we care about the white line....
 
-txrxStateMachine = rp2.StateMachine(0,txrx,freq=6000,sideset_base=machine.Pin(2),set_base=machine.Pin(2), 
-                    in_base=machine.Pin(0),out_base=machine.Pin(2) )
-redWatch= rp2.StateMachine(1,pinwatch,freq=6000,in_base=machine.Pin(0))
-whiteWatch= rp2.StateMachine(2,pinwatch,freq=6000,in_base=machine.Pin(1))
+txrxStateMachine = rp2.StateMachine(0,txrx,freq=500000,sideset_base=machine.Pin(2),set_base=machine.Pin(2), 
+                    in_base=machine.Pin(0),out_base=machine.Pin(2),jmp_pin=machine.Pin(0))
+redWatch= rp2.StateMachine(1,pinwatch,freq=500000,in_base=machine.Pin(0))
+whiteWatch= rp2.StateMachine(2,pinwatch,freq=500000,in_base=machine.Pin(1))
 machine.mem32[PIO0_BASE+SM0_EXECCTRL] += 1 
 print("Starting state machines...")
 
