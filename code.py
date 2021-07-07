@@ -1,7 +1,9 @@
 import machine
 import utime
 import rp2
-
+import micropython
+import select
+import sys
 PIO0_BASE = 0x50200000
 PIO_IRQ = 0x0030
 SM0_EXECCTRL = 0x00CC
@@ -174,6 +176,7 @@ def pinwatch():
     wrap()
 
 
+
 #setup pins
 red = machine.Pin(0, machine.Pin.IN)
 white = machine.Pin(1, machine.Pin.IN)
@@ -187,10 +190,10 @@ print("plug in Calculator")
 #utime.sleep(5)
 #In pin is 1, Because we care about the white line....
 
-txrxStateMachine = rp2.StateMachine(0,txrx,freq=500000,sideset_base=machine.Pin(2),set_base=machine.Pin(2), 
+txrxStateMachine = rp2.StateMachine(0,txrx,freq=650000,sideset_base=machine.Pin(2),set_base=machine.Pin(2), 
                     in_base=machine.Pin(0),out_base=machine.Pin(2),jmp_pin=machine.Pin(0))
-redWatch= rp2.StateMachine(1,pinwatch,freq=500000,in_base=machine.Pin(0))
-whiteWatch= rp2.StateMachine(2,pinwatch,freq=500000,in_base=machine.Pin(1))
+redWatch= rp2.StateMachine(1,pinwatch,freq=650000,in_base=machine.Pin(0))
+whiteWatch= rp2.StateMachine(2,pinwatch,freq=650000,in_base=machine.Pin(1))
 machine.mem32[PIO0_BASE+SM0_EXECCTRL] += 1 
 print("Starting state machines...")
 
@@ -198,12 +201,16 @@ txrxStateMachine.active(1)
 whiteWatch.active(1)
 redWatch.active(1)
 
-RDY = [0x73, 0xA2, 0x0D , 0x00 , 0x00 , 0x00 , 0x019, 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x00 , 0x19,0x00]
-for b in RDY:
-   txrxStateMachine.put(b)
+micropython.kbd_intr(-1)
+while True:
+    while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:        
+        ch = sys.stdin.buffer.read(1)
+        txrxStateMachine.put(ch)
+    else:
+        while (txrxStateMachine.rx_fifo()):
+            sys.stdout.buffer.write(bytes([txrxStateMachine.get()>>24]))
 
-print("rxing")
-# Continually start and stop state machine
+
 while True:    
    print(hex(txrxStateMachine.get()>>24))   #Doesnt like 1 bits all the time it seems?
     
@@ -223,7 +230,8 @@ while True:
     exctrl = machine.mem32[PIO0_BASE+SM0_EXECCTRL]
     pictrl = machine.mem32[PIO0_BASE+SM0_PINCTRL]
     instr = decode_pio(data,(pictrl >> 26) & 7,True if exctrl & (1<<30) else False)
-    print(" Instr, PC, execreg, retry"+str([instr,hex(addr),hex(exctrl),hex(retrycount),hex(data)]) + " rx " + str(txrxStateMachine.rx_fifo())+" " +val + " tx " + str(txrxStateMachine.tx_fifo()),end="\r")
+    print(" Instr, PC, execreg, retry"+str([instr,hex(addr),hex(exctrl),hex(retrycount),hex(data)]) + 
+        " rx " + str(txrxStateMachine.rx_fifo())+" " +val + " tx " + str(txrxStateMachine.tx_fifo()),end="\r")
 
     utime.sleep_ms(20)
    # txrxStateMachine.put(0xFF)
