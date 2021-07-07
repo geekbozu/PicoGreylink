@@ -117,13 +117,13 @@ def decode_pio(uint16_val, sideset_bits = 0, sideset_opt = False):
 
 
 
-@rp2.asm_pio(out_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),sideset_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),
-            set_init=(rp2.PIO.OUT_HIGH,rp2.PIO.OUT_HIGH),autopush=True,in_shiftdir=rp2.PIO.SHIFT_RIGHT,
+@rp2.asm_pio(out_init=(rp2.PIO.OUT_LOW,rp2.PIO.OUT_LOW),sideset_init=(rp2.PIO.OUT_LOW,rp2.PIO.OUT_LOW),
+            set_init=(rp2.PIO.OUT_LOW,rp2.PIO.OUT_LOW),autopush=True,in_shiftdir=rp2.PIO.SHIFT_RIGHT,
             out_shiftdir=rp2.PIO.SHIFT_RIGHT,push_thresh=8,pull_thresh=8)
 def txrx(): 
     wrap_target()
     label('idleloop')
-    mov(x,status)               # 1  Status, set IF fifo has 0 elements, clear if 1 or more
+    mov(x,status) .side(0)      # 1  Status, set IF fifo has 0 elements, clear if 1 or more  Set Both lines to input/Hi
     jmp(not_x,'txstart')        # 2  If status is clear, we have data to transmit
     set(y,0x3)                  # 3  bitmask for no bits pressed
     in_(pins,2)                 # 4  Read 2 input bits
@@ -137,14 +137,14 @@ def txrx():
     label('byteloop')    
     out(x,1)                    # 9  Put LSB into x
     jmp(not_x,'tx_0_bit')       # 10 bit is 0 then jump
-    set(pins,1)                 # 11 Assert white
+    set(pindirs,2)              # 11 Assert white  Red = Input White = Low
     wait(0,pins,0)              # 12 wait for red to be asserted
     jmp('bit_final_stage')      # 13 
     label('tx_0_bit')
-    set(pins,2)                 # 14 Assert red 
+    set(pindirs,1)              # 14 Assert red 
     wait(0,pins,1)              # 15 wait for white to be asserted
     label('bit_final_stage')    
-    wait(1,pins,0) .side(3)     # 16 Free both lines, Wait for red to de-assert
+    wait(1,pins,0) .side(0)     # 16 Free both lines, Wait for red to de-assert
     wait(1,pins,1)              # 17 wait for white to de-assert
     jmp(not_osre,'byteloop')    # 18 proceed to next bit, Or exit
     jmp('idleloop')             # 19 return to idle
@@ -155,12 +155,12 @@ def txrx():
     wait(0,irq, 0)              # 21 wait for irq to clear signaling we have a starting bit
     in_(pins,1)                 # 22 Save white line, Asserted = 0Bit, de-asserted = 1bit
     jmp(pin,'ifRed')            # 23 Check red, jump to appropriate ACK
-    wait(1,pin,0) .side(1)      # 24 De-assert white, wait for red to go high
+    wait(1,pin,0) .side(2)      # 24 De-assert white, wait for red to go high
     jmp('endrx')                # 25
     label('ifRed')
-    wait(1,pin,1)  .side(2)     # 26 De-Assert red, wait for white to go high
+    wait(1,pin,1)  .side(1)     # 26 De-Assert red, wait for white to go high
     label('endrx')
-    set(pins,3)                 # 27 De-assert both lines
+    set(pindirs,0)              # 27 De-assert both lines
     irq(0)                      # 28 Clear Bit start IRQ
     jmp(x_dec,'innerrx')        # 29 Continue RX loop until bit count = 0
     jmp('idleloop')             # 30 back to top. 
@@ -187,11 +187,11 @@ whiteOut = machine.Pin(3, machine.Pin.OUT,machine.Pin.PULL_UP)
 redOut.on()
 whiteOut.on()
 
-txrxStateMachine = rp2.StateMachine(0,txrx,freq=650000,sideset_base=machine.Pin(2),set_base=machine.Pin(2), 
-                    in_base=machine.Pin(0),out_base=machine.Pin(2),jmp_pin=machine.Pin(0))
-redWatch= rp2.StateMachine(1,pinwatch,freq=650000,in_base=machine.Pin(0))
-whiteWatch= rp2.StateMachine(2,pinwatch,freq=650000,in_base=machine.Pin(1))
-machine.mem32[PIO0_BASE+SM0_EXECCTRL] += 1 
+txrxStateMachine = rp2.StateMachine(0,txrx,freq=500000,sideset_base=machine.Pin(0),set_base=machine.Pin(0), 
+                    in_base=machine.Pin(0),out_base=machine.Pin(0),jmp_pin=machine.Pin(0))
+redWatch= rp2.StateMachine(1,pinwatch,freq=500000,in_base=machine.Pin(0))
+whiteWatch= rp2.StateMachine(2,pinwatch,freq=500000,in_base=machine.Pin(1))
+machine.mem32[PIO0_BASE+SM0_EXECCTRL] += 0x20000001 
 
 txrxStateMachine.active(1)
 whiteWatch.active(1)
