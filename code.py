@@ -186,16 +186,12 @@ whiteOut = machine.Pin(3, machine.Pin.OUT,machine.Pin.PULL_UP)
 
 redOut.on()
 whiteOut.on()
-print("plug in Calculator")
-#utime.sleep(5)
-#In pin is 1, Because we care about the white line....
 
 txrxStateMachine = rp2.StateMachine(0,txrx,freq=650000,sideset_base=machine.Pin(2),set_base=machine.Pin(2), 
                     in_base=machine.Pin(0),out_base=machine.Pin(2),jmp_pin=machine.Pin(0))
 redWatch= rp2.StateMachine(1,pinwatch,freq=650000,in_base=machine.Pin(0))
 whiteWatch= rp2.StateMachine(2,pinwatch,freq=650000,in_base=machine.Pin(1))
 machine.mem32[PIO0_BASE+SM0_EXECCTRL] += 1 
-print("Starting state machines...")
 
 txrxStateMachine.active(1)
 whiteWatch.active(1)
@@ -209,41 +205,3 @@ while True:
     else:
         while (txrxStateMachine.rx_fifo()):
             sys.stdout.buffer.write(bytes([txrxStateMachine.get()>>24]))
-
-
-while True:    
-   print(hex(txrxStateMachine.get()>>24))   #Doesnt like 1 bits all the time it seems?
-    
-   
-#txrxStateMachine.put(0x0F)
-#txrxStateMachine.put(0x0F)
-#txrxStateMachine.put(0x0F)
-
-retrycount = 0
-
-while True:
-    val = ""
-    if(txrxStateMachine.rx_fifo()):
-        val = hex(txrxStateMachine.get()>>24)
-    data = machine.mem32[PIO0_BASE+SM0_INSTR]
-    addr = machine.mem32[PIO0_BASE+SM0_ADDR]
-    exctrl = machine.mem32[PIO0_BASE+SM0_EXECCTRL]
-    pictrl = machine.mem32[PIO0_BASE+SM0_PINCTRL]
-    instr = decode_pio(data,(pictrl >> 26) & 7,True if exctrl & (1<<30) else False)
-    print(" Instr, PC, execreg, retry"+str([instr,hex(addr),hex(exctrl),hex(retrycount),hex(data)]) + 
-        " rx " + str(txrxStateMachine.rx_fifo())+" " +val + " tx " + str(txrxStateMachine.tx_fifo()),end="\r")
-
-    utime.sleep_ms(20)
-   # txrxStateMachine.put(0xFF)
-    retrycount += 1
-    
-    
-
- 
-print("rxing")
-# Continually start and stop state machine
-while True:    
-   print(hex(rxStateMachine.get()>>24))   #Doesnt like 1 bits all the time it seems?
-    
-
-
