@@ -152,7 +152,7 @@ def txrx():
     label('rxstart')   
     set(x,7)                    # 20 Bitcount -1
     label('innerrx')
-    wait(0,irq, 0)              # 21 wait for irq to clear signaling we have a starting bit
+    wait(0,irq, 4)              # 21 wait for irq to clear signaling we have a starting bit
     in_(pins,1)                 # 22 Save white line, Asserted = 0Bit, de-asserted = 1bit
     jmp(pin,'ifRed')            # 23 Check red, jump to appropriate ACK
     wait(1,pin,0) .side(2)      # 24 De-assert white, wait for red to go high
@@ -161,7 +161,8 @@ def txrx():
     wait(1,pin,1)  .side(1)     # 26 De-Assert red, wait for white to go high
     label('endrx')
     set(pindirs,0)              # 27 De-assert both lines
-    irq(0)                      # 28 Clear Bit start IRQ
+    irq(4) .side(0)                    # 28 Clear Bit start IRQ
+    irq(0,nowait)
     jmp(x_dec,'innerrx')        # 29 Continue RX loop until bit count = 0
     jmp('idleloop')             # 30 back to top. 
  
@@ -172,7 +173,7 @@ def txrx():
 def pinwatch():        
     wrap_target()
     wait(0,pin,0)               # 31 wait for pin to go low
-    irq(clear,0)                # 32 Assert IRQ 0
+    irq(clear,4)                # 32 Assert IRQ 0
     wrap()
 
 
