@@ -60,7 +60,7 @@ class TiLink:
         set(pindirs,0)
         irq(2) #.side(0)             # 27 Clear Bit start IRQ
         jmp(x_dec,'innerrx')        # 28 Continue RX loop until bit count = 0
-        irq(1)                      # 29 Assert rx irq
+        irq(0)                      # 29 Assert rx irq
         jmp('idleloop')             # 30 back to top. 
     
     #Pin watch routine
@@ -108,7 +108,8 @@ class TiLink:
         self.txrxStateMachine.put(data)
 
     def irq(self,routine):
-        return self.txrxStateMachine.irq(handler=routine,trigger=0)
+        self.txrxStateMachine.irq(routine)
+        
         
     def rx_fifo(self):
         return self.txrxStateMachine.rx_fifo()
@@ -116,25 +117,4 @@ class TiLink:
     def tx_fifo(self):
         return self.txrxStateMachine.tx_fifo()
     
-
-
-
-def rxi(flag):
-    print('a')
-    for i in range(ti.rx_fifo()):
-        sys.stdout.buffer.write(bytes([ti.get()]))
-
-
-
-
-print("starting")
-ti = TiLink(0)
-ti.begin()
-ti.irq(rxi)
-micropython.kbd_intr(-1)
-
-while True:
-    while sys.stdin in select.select([sys.stdin], [], [], 0)[0]:        
-        ch = sys.stdin.buffer.read(1)
-        ti.put(ch)
 

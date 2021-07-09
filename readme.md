@@ -4,19 +4,35 @@
 
 A set of PIO state machine programs and routines for linking the PICO to a Ti-8X graphing calculator
 
-### Routines. 
-TBD, No Api has been solidfied yet
+## Python API
+TiLink.py 
 
-### Examples
-This repository plans to include a python set of routines, and a C set of routines. Examples for both as well as an implementation of a silverlink emulator for use sending programs to and from a calculator via a PC.
+Exposes a class called TiLink. 
 
-### Hardware
+- TiLink.begin() - Starts TiLink machine
+- TiLink.stop() - Stops TiLink machine
+- TiLink.restart() - Restarts state machine 
+- TiLink.get() - Returns last received byte, or blocks until data is available. 
+
+- TiLink.put(data) - Writes data to TiLink, Blocks if Tx fifo has more then 4 bytes. 
+- TiLink.irq(routine) - Attached Routine to Received byte
+- TiLink.rx_fifo() returns bytes waiting to be recieved
+- TiLink.tx_fifo() returns bytes waiting to be sent. 
+
+## Examples
+#### GreyLink.py - 
+
+​	This example emulates a Ti GreyLink cable. The Grey Link cable presents it self to a computer as a serial port, and directly translates bytes in and out from the computer and calculator. Upload TiLink.py to your Pico, Run GreyLink.py on the Pico. You can rename GreyLink.py to main.py to have it run on Picoboot. 
+
+
+
+## Hardware
 
 The Pico is connected to a graphing calculator using 2 GPIO pins and ground. 
 
 
 
-### Protocol 
+## Protocol 
 
 Quoted from the [Ti Link Protocol Guide by Tim Singer And Romain Liévin](http://merthsoft.com/linkguide/index.html)
 
@@ -33,7 +49,7 @@ These are a flow chart example of the send/rx logic
 
 
 
-#### Thanks And Credits
+## Thanks And Credits
 
 Some of the Images used are curtesy of The TI Link Protocol Guide. 
 
